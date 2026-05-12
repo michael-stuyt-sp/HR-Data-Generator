@@ -50,6 +50,8 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
+> **Tip:** `requirements.txt` includes packages for all LLM providers. If you only plan to use one or two, remove the lines you don't need before installing to keep your environment lean. For example, if you're only using Ollama, you can remove the `openai`, `anthropic`, and `google-generativeai` lines. If you're using `--provider none` exclusively, you can remove all provider packages except `Faker`.
+
 ## Usage
 
 ```bash
