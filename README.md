@@ -1,16 +1,24 @@
 # Employee Generator
 
-AI-powered fake employee data generator for identity management systems.
+Fake employee data generator for identity management systems. Supports both AI-powered company research and fully offline generation using built-in industry presets.
+
+## Modes
+
+### AI Mode (Ollama or Apfel)
+Uses a local LLM to research a real or fictional company and generate industry-appropriate departments, job titles, and office locations. No data leaves your machine.
+
+- **Ollama** (default) — runs `llama3.2:3b` locally via [Ollama](https://ollama.ai/)
+- **Apfel** — uses Apple Intelligence on-device via the `apple-fm-sdk` (macOS 26+ with Xcode 26+ required)
+
+### Non-AI Mode (`--provider none`)
+No LLM required. Uses one of seven built-in industry presets to generate employees entirely offline. Ideal for CI pipelines, air-gapped environments, or quick local testing.
 
 ## Features
 
-- AI-powered company research using a local LLM — Ollama or Apple Intelligence (Apfel)
-- Built-in industry presets for offline / no-LLM use
-- Generates realistic employee records with a 4-level reporting hierarchy
-- Org levels: Executive → VP → Manager → Individual Contributor
+- 4-level org hierarchy: Executive → VP → Manager → Individual Contributor
 - Tier sizes derived automatically from total headcount
 - Tier-appropriate job titles (e.g. "Chief Engineer" at L1, "Lead Engineer" at L3)
-- Industry-specific job titles and departments
+- Industry-specific departments and job titles
 - Multiple office locations with domain-based emails
 - CSV and JSON output formats
 - Graceful error handling for LLM connectivity and malformed responses
@@ -63,20 +71,24 @@ python main.py [company] [-n NUM] [-f FORMAT] [-p PROVIDER] [-i INDUSTRY] [-o FI
 ### Examples
 
 ```bash
-# Generate 100 employees using Ollama (default)
+# --- AI Mode ---
+
+# Generate 100 employees by researching "Tesla" with Ollama (default)
 python main.py "Tesla"
 
 # Generate 50 employees using Apple Intelligence (Apfel)
 python main.py "Acme Corp" -n 50 -p apfel
+
+# Generate pharma employees using Ollama, save to JSON
+python main.py "BioNTech" -n 200 -f json -o employees.json
+
+# --- Non-AI Mode ---
 
 # Generate using built-in healthcare preset — no LLM required
 python main.py -p none -i healthcare
 
 # Generate 500 government employees in JSON format, save to file
 python main.py -p none -i government -n 500 -f json -o employees.json
-
-# Generate pharma employees using Ollama with a custom company name
-python main.py "BioNTech" -n 200 -f json -o employees.json
 ```
 
 ## Output
