@@ -1,3 +1,12 @@
 Faker>=25.0.0
+
+# Local LLM providers
 ollama>=0.6.0
+
+# Apple Intelligence (macOS 26+ only)
 apple-fm-sdk>=0.1.0
+
+# Cloud LLM providers (install only what you need)
+openai>=1.0.0
+anthropic>=0.25.0
+google-generativeai>=0.8.0

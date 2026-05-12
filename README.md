@@ -4,11 +4,19 @@ Fake employee data generator for identity management systems. Supports both AI-p
 
 ## Modes
 
-### AI Mode (Ollama or Apfel)
-Uses a local LLM to research a real or fictional company and generate industry-appropriate departments, job titles, and office locations. No data leaves your machine.
+### AI Mode (local or cloud)
+Uses an LLM to research a real or fictional company and generate industry-appropriate departments, job titles, and office locations. No data leaves your machine when using local providers.
 
+**Local providers:**
 - **Ollama** (default) — runs `llama3.2:3b` locally via [Ollama](https://ollama.ai/)
 - **Apfel** — uses Apple Intelligence on-device via the `apple-fm-sdk` (macOS 26+ with Xcode 26+ required)
+
+**Cloud providers:**
+- **OpenAI** — uses `gpt-4o-mini` by default; requires `OPENAI_API_KEY`
+- **Anthropic** — uses `claude-3-5-haiku-latest` by default; requires `ANTHROPIC_API_KEY`
+- **Gemini** — uses `gemini-2.0-flash` by default; requires `GEMINI_API_KEY`
+
+Use `-m / --model` to override the default model for any provider.
 
 ### Non-AI Mode (`--provider none`)
 No LLM required. Uses one of seven built-in industry presets to generate employees entirely offline. Ideal for CI pipelines, air-gapped environments, or quick local testing.
@@ -28,6 +36,9 @@ No LLM required. Uses one of seven built-in industry presets to generate employe
 - Python 3.10+
 - **Ollama** (default): [Ollama](https://ollama.ai/) running locally with `llama3.2:3b` model
 - **Apfel** (optional): macOS 26+ with Apple Intelligence enabled and Xcode 26+ command line tools ([setup guide](https://support.apple.com/en-us/121115))
+- **OpenAI** (optional): `OPENAI_API_KEY` environment variable
+- **Anthropic** (optional): `ANTHROPIC_API_KEY` environment variable
+- **Gemini** (optional): `GEMINI_API_KEY` environment variable
 - **None**: no external dependencies — uses built-in industry presets
 
 ## Installation
@@ -49,12 +60,22 @@ python main.py [company] [-n NUM] [-f FORMAT] [-p PROVIDER] [-i INDUSTRY] [-o FI
 
 | Argument | Description |
 |----------|-------------|
-| `company` | Company name to research (required for `ollama` and `apfel` providers) |
+| `company` | Company name to research (required for LLM providers) |
 | `-n, --num` | Number of employees to generate (default: 100) |
 | `-f, --format` | Output format: `csv` or `json` (default: csv) |
-| `-p, --provider` | LLM provider: `ollama` (default), `apfel`, or `none` |
+| `-p, --provider` | LLM provider: `ollama` (default), `apfel`, `openai`, `anthropic`, `gemini`, or `none` |
+| `-m, --model` | Model name override for the selected provider (see defaults below) |
 | `-i, --industry` | Industry preset — required when `--provider none` (see below) |
 | `-o, --output` | Output file path (default: stdout) |
+
+### Default Models per Provider
+
+| Provider | Default model |
+|----------|--------------|
+| `ollama` | `llama3.2:3b` |
+| `openai` | `gpt-4o-mini` |
+| `anthropic` | `claude-3-5-haiku-latest` |
+| `gemini` | `gemini-2.0-flash` |
 
 ### Industry Presets (`--provider none`)
 
@@ -71,7 +92,7 @@ python main.py [company] [-n NUM] [-f FORMAT] [-p PROVIDER] [-i INDUSTRY] [-o FI
 ### Examples
 
 ```bash
-# --- AI Mode ---
+# --- AI Mode (local) ---
 
 # Generate 100 employees by researching "Tesla" with Ollama (default)
 python main.py "Tesla"
@@ -79,8 +100,22 @@ python main.py "Tesla"
 # Generate 50 employees using Apple Intelligence (Apfel)
 python main.py "Acme Corp" -n 50 -p apfel
 
-# Generate pharma employees using Ollama, save to JSON
-python main.py "BioNTech" -n 200 -f json -o employees.json
+# Use a different Ollama model
+python main.py "Tesla" -p ollama -m mistral
+
+# --- AI Mode (cloud) ---
+
+# Generate using OpenAI (requires OPENAI_API_KEY)
+python main.py "Tesla" -p openai
+
+# Use GPT-4o instead of the default gpt-4o-mini
+python main.py "Tesla" -p openai -m gpt-4o
+
+# Generate using Anthropic Claude (requires ANTHROPIC_API_KEY)
+python main.py "Acme Corp" -n 50 -p anthropic
+
+# Generate using Google Gemini (requires GEMINI_API_KEY)
+python main.py "BioNTech" -n 200 -f json -o employees.json -p gemini
 
 # --- Non-AI Mode ---
 
@@ -159,6 +194,17 @@ ollama pull llama3.2:3b
 **Malformed LLM response:**
 ```
 Error: LLM returned invalid JSON for company research.
+```
+
+**Missing API key (cloud providers):**
+```
+Error: OPENAI_API_KEY environment variable is not set.
+```
+Set the appropriate key before running:
+```bash
+export OPENAI_API_KEY="sk-..."
+export ANTHROPIC_API_KEY="sk-ant-..."
+export GEMINI_API_KEY="AIza..."
 ```
 
 **Apfel / Apple Intelligence unavailable:**

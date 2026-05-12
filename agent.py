@@ -1,6 +1,7 @@
 import ollama
 import json
 import asyncio
+import os
 from company import CompanyProfile
 
 SYSTEM_PROMPT = """You are a company research assistant. Use the provided tools to gather information about a company."""
@@ -19,6 +20,13 @@ JOB_TITLES_PROMPT = (
     "Return ONLY a JSON array of strings, nothing else."
 )
 
+# Default models per cloud provider
+DEFAULT_MODELS = {
+    "openai": "gpt-4o-mini",
+    "anthropic": "claude-3-5-haiku-latest",
+    "gemini": "gemini-2.0-flash",
+}
+
 
 def _strip_markdown_fences(content: str) -> str:
     """Strip markdown code fences that LLMs sometimes wrap JSON in."""
@@ -35,10 +43,10 @@ def _strip_markdown_fences(content: str) -> str:
 # Ollama backend
 # ---------------------------------------------------------------------------
 
-def _ollama_chat(system: str, user: str) -> str:
+def _ollama_chat(system: str, user: str, model: str = "llama3.2:3b") -> str:
     try:
         response = ollama.chat(
-            model="llama3.2:3b",
+            model=model,
             messages=[
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},
@@ -91,13 +99,118 @@ def _apfel_chat(system: str, user: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# OpenAI backend
+# ---------------------------------------------------------------------------
+
+def _openai_chat(system: str, user: str, model: str) -> str:
+    try:
+        from openai import OpenAI
+    except ImportError as e:
+        raise RuntimeError(
+            "openai package is not installed. Run: pip install openai"
+        ) from e
+
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        raise RuntimeError(
+            "OPENAI_API_KEY environment variable is not set."
+        )
+
+    try:
+        client = OpenAI(api_key=api_key)
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+            temperature=0.3,
+        )
+    except Exception as e:
+        raise RuntimeError(f"OpenAI API error: {e}") from e
+
+    return response.choices[0].message.content
+
+
+# ---------------------------------------------------------------------------
+# Anthropic backend
+# ---------------------------------------------------------------------------
+
+def _anthropic_chat(system: str, user: str, model: str) -> str:
+    try:
+        import anthropic
+    except ImportError as e:
+        raise RuntimeError(
+            "anthropic package is not installed. Run: pip install anthropic"
+        ) from e
+
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        raise RuntimeError(
+            "ANTHROPIC_API_KEY environment variable is not set."
+        )
+
+    try:
+        client = anthropic.Anthropic(api_key=api_key)
+        response = client.messages.create(
+            model=model,
+            max_tokens=1024,
+            system=system,
+            messages=[{"role": "user", "content": user}],
+        )
+    except Exception as e:
+        raise RuntimeError(f"Anthropic API error: {e}") from e
+
+    return response.content[0].text
+
+
+# ---------------------------------------------------------------------------
+# Google Gemini backend
+# ---------------------------------------------------------------------------
+
+def _gemini_chat(system: str, user: str, model: str) -> str:
+    try:
+        from google import generativeai as genai
+    except ImportError as e:
+        raise RuntimeError(
+            "google-generativeai package is not installed. Run: pip install google-generativeai"
+        ) from e
+
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise RuntimeError(
+            "GEMINI_API_KEY environment variable is not set."
+        )
+
+    try:
+        genai.configure(api_key=api_key)
+        gemini_model = genai.GenerativeModel(
+            model_name=model,
+            system_instruction=system,
+            generation_config={"temperature": 0.3},
+        )
+        response = gemini_model.generate_content(user)
+    except Exception as e:
+        raise RuntimeError(f"Gemini API error: {e}") from e
+
+    return response.text
+
+
+# ---------------------------------------------------------------------------
 # Provider dispatch
 # ---------------------------------------------------------------------------
 
-def _chat(system: str, user: str, provider: str) -> str:
+def _chat(system: str, user: str, provider: str, model: str | None = None) -> str:
     if provider == "apfel":
         return _apfel_chat(system, user)
-    return _ollama_chat(system, user)
+    if provider == "openai":
+        return _openai_chat(system, user, model or DEFAULT_MODELS["openai"])
+    if provider == "anthropic":
+        return _anthropic_chat(system, user, model or DEFAULT_MODELS["anthropic"])
+    if provider == "gemini":
+        return _gemini_chat(system, user, model or DEFAULT_MODELS["gemini"])
+    # Default: ollama
+    return _ollama_chat(system, user, model or "llama3.2:3b")
 
 
 def _parse_json(content: str, context: str) -> dict | list:
@@ -111,20 +224,22 @@ def _parse_json(content: str, context: str) -> dict | list:
         ) from e
 
 
-def research_company(company_name: str, provider: str = "ollama") -> dict:
+def research_company(company_name: str, provider: str = "ollama", model: str | None = None) -> dict:
     content = _chat(
         system=SYSTEM_PROMPT,
         user=RESEARCH_PROMPT.format(company_name=company_name),
         provider=provider,
+        model=model,
     )
     return _parse_json(content, "company research")
 
 
-def get_job_titles(industry: str, provider: str = "ollama") -> list[str]:
+def get_job_titles(industry: str, provider: str = "ollama", model: str | None = None) -> list[str]:
     content = _chat(
         system="You are a job title expert. Return only a JSON array of 15-20 realistic job titles for the given industry.",
         user=JOB_TITLES_PROMPT.format(industry=industry),
         provider=provider,
+        model=model,
     )
     return _parse_json(content, "job titles")
 
@@ -134,18 +249,20 @@ def get_job_titles(industry: str, provider: str = "ollama") -> list[str]:
 # ---------------------------------------------------------------------------
 
 class CompanyAgent:
-    def __init__(self, company_name: str, provider: str = "ollama"):
+    def __init__(self, company_name: str, provider: str = "ollama", model: str | None = None):
         self.company_name = company_name
         self.provider = provider
+        self.model = model
         self.profile: CompanyProfile | None = None
 
     def research(self) -> CompanyProfile:
-        print(f"Researching {self.company_name} (provider: {self.provider})...")
-        company_info = research_company(self.company_name, self.provider)
+        print(f"Researching {self.company_name} (provider: {self.provider}"
+              + (f", model: {self.model}" if self.model else "") + ")...")
+        company_info = research_company(self.company_name, self.provider, self.model)
 
         print(f"Found: {company_info['industry']} company")
         print(f"Generating job titles for {company_info['industry']} industry...")
-        job_titles = get_job_titles(company_info["industry"], self.provider)
+        job_titles = get_job_titles(company_info["industry"], self.provider, self.model)
 
         locations = []
         company_slug = self.company_name.lower().replace(" ", "").replace(".", "")

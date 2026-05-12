@@ -28,9 +28,18 @@ def main():
     parser.add_argument(
         "-p",
         "--provider",
-        choices=["ollama", "apfel", "none"],
+        choices=["ollama", "apfel", "openai", "anthropic", "gemini", "none"],
         default="ollama",
-        help="LLM provider: ollama (default), apfel (Apple Intelligence), or none (use built-in preset)",
+        help="LLM provider: ollama (default), apfel (Apple Intelligence), openai, anthropic, gemini, or none (use built-in preset)",
+    )
+    parser.add_argument(
+        "-m",
+        "--model",
+        help=(
+            "Model name override for the selected provider. "
+            "Defaults: ollama=llama3.2:3b, openai=gpt-4o-mini, "
+            "anthropic=claude-3-5-haiku-latest, gemini=gemini-2.0-flash"
+        ),
     )
     parser.add_argument(
         "-i",
@@ -72,7 +81,7 @@ def main():
             sys.exit(1)
         print(f"Using built-in preset: {profile.industry}")
     else:
-        agent = CompanyAgent(args.company, provider=args.provider)
+        agent = CompanyAgent(args.company, provider=args.provider, model=args.model)
         try:
             profile = agent.research()
         except (RuntimeError, ValueError) as e:
